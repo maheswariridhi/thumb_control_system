@@ -535,26 +535,6 @@ const ScientificThumbController = () => {
             </div>
           </div>
         </div>
-        
-        {/* System Status Bar */}
-        <div className="mt-4 bg-slate-900 rounded-lg border border-slate-800 p-3">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-slate-400">SYSTEM ONLINE</span>
-              </span>
-              <span className="text-slate-600">|</span>
-              <span className="text-slate-400">
-                MODEL: Claude-3 Haiku | LATENCY: &lt;100ms | PROTOCOL: NLI-2.0
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-400">
-              <Brain size={14} />
-              <span>Neural Interface Active</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
