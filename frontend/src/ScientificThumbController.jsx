@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Activity, Brain, Zap, TrendingUp, Terminal, ChevronRight } from 'lucide-react';
+import { Activity, Zap, TrendingUp, Terminal, ChevronRight, RotateCcw } from 'lucide-react';
 
 // API function to call your Python backend
 const processCommand = async (command) => {
@@ -21,10 +21,12 @@ const processCommand = async (command) => {
     return {
       success: true,
       angles: {
-        mpFlex: data.CMC_flex || 0,
-        mpAbd: data.CMC_abd || 0,
-        pipFlex: data.MCP_flex || 0,
-        dipFlex: data.IP_flex || 0
+        CMC_flex: data.CMC_flex || 0,
+        CMC_abd: data.CMC_abd || 0,
+        CMC_opp: data.CMC_opp || 0,
+        CMC_rep: data.CMC_rep || 0,
+        MCP_flex: data.MCP_flex || 0,
+        IP_flex: data.IP_flex || 0
       },
       message: `Command processed: Moving to ${command} position`,
       confidence: 0.95
@@ -33,7 +35,7 @@ const processCommand = async (command) => {
     console.error('Backend error:', error);
     return {
       success: false,
-      angles: { mpFlex: 0, mpAbd: 0, pipFlex: 0, dipFlex: 0 },
+      angles: { CMC_flex: 0, CMC_abd: 0, CMC_opp: 0, CMC_rep: 0, MCP_flex: 0, IP_flex: 0 },
       message: "Backend connection failed. Please ensure Python server is running on port 5000.",
       confidence: 0
     };
@@ -41,11 +43,11 @@ const processCommand = async (command) => {
 };
 
 const ScientificThumbController = () => {
-  // ===== THUMB VISUALIZATION CODE (from original) =====
+  // ===== THUMB VISUALIZATION CODE =====
   const segments = {
-    metacarpal: { length: 50, width: 22, height: 18 },
-    proximal: { length: 35, width: 20, height: 15 },
-    distal: { length: 28, width: 18, height: 13 }
+    metacarpal: { length: 50, width: 5 },  // CMC → MCP
+    proximal: { length: 30, width: 5 },    // MCP → IP
+    distal: { length: 20, width: 5 }       // IP → tip
   };
 
   // ===== STATE MANAGEMENT =====
@@ -61,8 +63,13 @@ const ScientificThumbController = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const messagesEndRef = useRef(null);
 
-  const [targetAngles, setTargetAngles] = useState({ mpFlex: 0, mpAbd: 0, pipFlex: 0, dipFlex: 0 });
-  const [currentAngles, setCurrentAngles] = useState({ mpFlex: 0, mpAbd: 0, pipFlex: 0, dipFlex: 0 });
+  // 10 actuator values, all positive
+  const initialAngles = useMemo(() => ({
+    CMC_flex: 0, CMC_ext: 0, CMC_abd: 0, CMC_add: 0, CMC_opp: 0, CMC_rep: 0,
+    MCP_flex: 0, MCP_ext: 0, IP_flex: 0, IP_ext: 0
+  }), []);
+  const [targetAngles, setTargetAngles] = useState({ ...initialAngles });
+  const [currentAngles, setCurrentAngles] = useState({ ...initialAngles });
   const [isAnimating, setIsAnimating] = useState(false);
   const [telemetryData, setTelemetryData] = useState([]);
   const [performanceMetrics, setPerformanceMetrics] = useState({
@@ -71,11 +78,45 @@ const ScientificThumbController = () => {
     powerConsumption: 0
   });
 
+  // Add loading state
+  const [isResetting, setIsResetting] = useState(false);
+
+  // Preset joint angles for trial visualizations (all positive, 10 values)
+  const trialPresets = {
+    Curl: {
+      CMC_flex: 40, CMC_ext: 0, CMC_abd: 0, CMC_add: 0, CMC_opp: 0, CMC_rep: 0,
+      MCP_flex: 60, MCP_ext: 0, IP_flex: 60, IP_ext: 0
+    },
+    Oppose: {
+      CMC_flex: 30, CMC_ext: 0, CMC_abd: 20, CMC_add: 0, CMC_opp: 35, CMC_rep: 0,
+      MCP_flex: 30, MCP_ext: 0, IP_flex: 20, IP_ext: 0
+    },
+    Reposition: {
+      CMC_flex: 0, CMC_ext: 0, CMC_abd: 0, CMC_add: 0, CMC_opp: 0, CMC_rep: 30,
+      MCP_flex: 0, MCP_ext: 0, IP_flex: 0, IP_ext: 0
+    },
+    'Thumbs Up': {
+      CMC_flex: 0, CMC_ext: 0, CMC_abd: 30, CMC_add: 0, CMC_opp: 0, CMC_rep: 0,
+      MCP_flex: 0, MCP_ext: 0, IP_flex: 0, IP_ext: 0
+    },
+    Pinch: {
+      CMC_flex: 30, CMC_ext: 0, CMC_abd: 20, CMC_add: 0, CMC_opp: 25, CMC_rep: 0,
+      MCP_flex: 40, MCP_ext: 0, IP_flex: 50, IP_ext: 0
+    },
+    Rest: {
+      CMC_flex: 0, CMC_ext: 0, CMC_abd: 0, CMC_add: 0, CMC_opp: 0, CMC_rep: 0,
+      MCP_flex: 0, MCP_ext: 0, IP_flex: 0, IP_ext: 0
+    },
+    Extend: {
+      CMC_flex: 0, CMC_ext: 20, CMC_abd: 0, CMC_add: 0, CMC_opp: 0, CMC_rep: 0,
+      MCP_flex: 0, MCP_ext: 25, IP_flex: 0, IP_ext: 0
+    }
+  };
+
   // Natural Language Processing
   const processNaturalLanguage = async (command) => {
     const startTime = performance.now();
     
-    // Call your Python backend or use local processing
     const result = await processCommand(command);
     
     const endTime = performance.now();
@@ -90,6 +131,35 @@ const ScientificThumbController = () => {
     return result;
   };
 
+  // Animation frame ref to prevent multiple concurrent loops
+  const animationFrameRef = useRef();
+
+  // Update trial visualization handler to use presets
+  const handleTrial = (label) => {
+    const preset = trialPresets[label];
+    if (!preset) return;
+    setIsAnimating(false);
+    setTimeout(() => {
+      setTargetAngles({ ...preset });
+      setIsAnimating(true);
+    }, 0);
+    setMessages(prev => [
+      ...prev.slice(-49), // keep only last 49
+      {
+        id: prev.length + 1,
+        type: 'assistant',
+        text: `Trial visualization: ${label}`,
+        angles: preset,
+        timestamp: new Date().toISOString()
+      }
+    ]);
+  };
+
+  // Update trial button definitions to use label only
+  const trialButtons = [
+    'Curl', 'Extend', 'Oppose', 'Reposition', 'Thumbs Up', 'Pinch', 'Rest'
+  ];
+
   // Send message handler
   const sendMessage = async () => {
     if (!inputText.trim() || isProcessing) return;
@@ -101,7 +171,7 @@ const ScientificThumbController = () => {
       timestamp: new Date().toISOString()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages(prev => [...prev.slice(-49), userMessage]);
     setInputText('');
     setIsProcessing(true);
 
@@ -117,21 +187,24 @@ const ScientificThumbController = () => {
         timestamp: new Date().toISOString()
       };
 
-      setMessages(prev => [...prev, botMessage]);
+      setMessages(prev => [...prev.slice(-49), botMessage]);
       
       if (result.success) {
         setTargetAngles(result.angles);
         setIsAnimating(true);
         
-        // Log telemetry
+        // Log telemetry with new joint names
         const telemetryPoint = {
           timestamp: Date.now(),
-          mpFlex: result.angles.mpFlex,
-          pipFlex: result.angles.pipFlex,
-          dipFlex: result.angles.dipFlex,
-          totalFlexion: result.angles.mpFlex + result.angles.pipFlex + result.angles.dipFlex
+          CMC_flex: result.angles.CMC_flex,
+          CMC_abd: result.angles.CMC_abd,
+          CMC_opp: result.angles.CMC_opp,
+          CMC_rep: result.angles.CMC_rep,
+          MCP_flex: result.angles.MCP_flex,
+          IP_flex: result.angles.IP_flex,
+          totalFlexion: result.angles.CMC_flex + result.angles.MCP_flex + result.angles.IP_flex
         };
-        setTelemetryData(prev => [...prev.slice(-50), telemetryPoint]);
+        setTelemetryData(prev => [...prev.slice(-49), telemetryPoint]);
       }
     } catch (error) {
       console.error('Error processing command:', error);
@@ -141,43 +214,37 @@ const ScientificThumbController = () => {
         text: 'Error processing command. Please try again.',
         timestamp: new Date().toISOString()
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => [...prev.slice(-49), errorMessage]);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Animation loop
+  // Animation loop with further optimizations
   useEffect(() => {
     if (!isAnimating) return;
-
-    const interval = setInterval(() => {
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    const animate = () => {
       setCurrentAngles(prev => {
         const lerp = (start, end, factor) => start + (end - start) * factor;
-        const factor = 0.15;
-
-        const newAngles = {
-          mpFlex: lerp(prev.mpFlex, targetAngles.mpFlex, factor),
-          mpAbd: lerp(prev.mpAbd, targetAngles.mpAbd, factor),
-          pipFlex: lerp(prev.pipFlex, targetAngles.pipFlex, factor),
-          dipFlex: lerp(prev.dipFlex, targetAngles.dipFlex, factor)
-        };
-
-        const diff = Math.abs(newAngles.mpFlex - targetAngles.mpFlex) +
-                    Math.abs(newAngles.mpAbd - targetAngles.mpAbd) +
-                    Math.abs(newAngles.pipFlex - targetAngles.pipFlex) +
-                    Math.abs(newAngles.dipFlex - targetAngles.dipFlex);
-
-        if (diff < 0.5) {
-          setIsAnimating(false);
+        const factor = 0.5;
+        const newAngles = {};
+        let maxDiff = 0;
+        for (const key of Object.keys(initialAngles)) {
+          newAngles[key] = lerp(prev[key], targetAngles[key], factor);
+          maxDiff = Math.max(maxDiff, Math.abs(newAngles[key] - targetAngles[key]));
         }
-
+        if (maxDiff < 0.1) {
+          setIsAnimating(false);
+          return { ...targetAngles };
+        }
+        animationFrameRef.current = requestAnimationFrame(animate);
         return newAngles;
       });
-    }, 50);
-
-    return () => clearInterval(interval);
-  }, [isAnimating, targetAngles]);
+    };
+    animationFrameRef.current = requestAnimationFrame(animate);
+    return () => { if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current); };
+  }, [isAnimating, targetAngles, initialAngles]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -185,47 +252,63 @@ const ScientificThumbController = () => {
     }
   }, [messages]);
 
-  // Forward kinematics
+  // Forward kinematics (right hand anatomical axes, SVG Y fix, 10 values)
   const calculateForwardKinematics = (angles) => {
     const deg2rad = (deg) => deg * Math.PI / 180;
-    const base = { x: 200, y: 250, z: 0, angle: 45 };
-    const baseRad = deg2rad(base.angle);
-
-    const mpAbdRad = deg2rad(angles.mpAbd);
-    const mpFlexRad = deg2rad(angles.mpFlex);
-
-    const mpX = base.x + segments.metacarpal.length * Math.cos(baseRad + mpFlexRad) * Math.cos(mpAbdRad);
-    const mpY = base.y - segments.metacarpal.length * Math.sin(baseRad + mpFlexRad);
-    const mpZ = base.z + segments.metacarpal.length * Math.sin(mpAbdRad);
-
-    const pipTotalAngle = base.angle + angles.mpFlex + angles.pipFlex;
-    const pipX = mpX + segments.proximal.length * Math.cos(deg2rad(pipTotalAngle)) * Math.cos(mpAbdRad);
-    const pipY = mpY - segments.proximal.length * Math.sin(deg2rad(pipTotalAngle));
-    const pipZ = mpZ + segments.proximal.length * Math.sin(mpAbdRad) * 0.5;
-
-    const dipTotalAngle = pipTotalAngle + angles.dipFlex;
-    const dipX = pipX + segments.distal.length * Math.cos(deg2rad(dipTotalAngle)) * Math.cos(mpAbdRad);
-    const dipY = pipY - segments.distal.length * Math.sin(deg2rad(dipTotalAngle));
-    const dipZ = pipZ + segments.distal.length * Math.sin(mpAbdRad) * 0.3;
-
-    return {
-      base,
-      mp: { x: mpX, y: mpY, z: mpZ, width: segments.metacarpal.width },
-      pip: { x: pipX, y: pipY, z: pipZ, width: segments.proximal.width },
-      tip: { x: dipX, y: dipY, z: dipZ, width: segments.distal.width }
+    // Segment lengths
+    const L1 = segments.metacarpal.length; // CMC → MCP
+    const L2 = segments.proximal.length;   // MCP → IP
+    const L3 = segments.distal.length;     // IP → tip
+    // Base (CMC joint) at bottom right
+    const base = { x: 300, y: 300, z: 0 };
+    // Net angles (flex - ext, abd - add, etc.)
+    const net = {
+      CMC_flex: (angles.CMC_flex || 0) - (angles.CMC_ext || 0),
+      CMC_abd: (angles.CMC_abd || 0) - (angles.CMC_add || 0),
+      CMC_opp: (angles.CMC_opp || 0),
+      CMC_rep: (angles.CMC_rep || 0),
+      MCP_flex: (angles.MCP_flex || 0) - (angles.MCP_ext || 0),
+      IP_flex: (angles.IP_flex || 0) - (angles.IP_ext || 0)
     };
+    // At rest, thumb points up (Y-)
+    const theta0 = deg2rad(-90 + net.CMC_flex);
+    const phi0 = deg2rad(net.CMC_abd + net.CMC_opp - net.CMC_rep);
+    const mcp = {
+      x: base.x - L1 * Math.cos(theta0) * Math.cos(phi0),
+      y: base.y + L1 * Math.sin(theta0),
+      z: base.z + L1 * Math.sin(phi0),
+      width: segments.metacarpal.width
+    };
+    const theta1 = theta0 + deg2rad(net.MCP_flex);
+    const phi1 = phi0;
+    const ip = {
+      x: mcp.x - L2 * Math.cos(theta1) * Math.cos(phi1),
+      y: mcp.y + L2 * Math.sin(theta1),
+      z: mcp.z + L2 * Math.sin(phi1),
+      width: segments.proximal.width
+    };
+    const theta2 = theta1 + deg2rad(net.IP_flex);
+    const phi2 = phi1;
+    const tip = {
+      x: ip.x - L3 * Math.cos(theta2) * Math.cos(phi2),
+      y: ip.y + L3 * Math.sin(theta2),
+      z: ip.z + L3 * Math.sin(phi2),
+      width: segments.distal.width
+    };
+    const project = (pt) => ({ x: pt.x + 0.5 * pt.z, y: pt.y - 0.3 * pt.z });
+    return { base: project(base), mcp: project(mcp), ip: project(ip), tip: project(tip) };
   };
 
   // Professional Thumb Visualization
   const ThumbVisualization = () => {
     const fk = calculateForwardKinematics(currentAngles);
 
+    // Helper to draw a segment between two joints
     const createThumbSegment = (start, end, width) => {
       const angle = Math.atan2(end.y - start.y, end.x - start.x);
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
       const w = width / 2;
-
       return {
         topStart: { x: start.x - w * sin, y: start.y + w * cos },
         topEnd: { x: end.x - w * sin, y: end.y + w * cos },
@@ -234,9 +317,10 @@ const ScientificThumbController = () => {
       };
     };
 
-    const metacarpalShape = createThumbSegment(fk.base, fk.mp, fk.mp.width);
-    const proximalShape = createThumbSegment(fk.mp, fk.pip, fk.pip.width);
-    const distalShape = createThumbSegment(fk.pip, fk.tip, fk.tip.width);
+    // Segments: CMC→MCP, MCP→IP, IP→tip
+    const metacarpalShape = createThumbSegment(fk.base, fk.mcp, segments.metacarpal.width);
+    const proximalShape = createThumbSegment(fk.mcp, fk.ip, segments.proximal.width);
+    const distalShape = createThumbSegment(fk.ip, fk.tip, segments.distal.width);
 
     return (
       <svg width="100%" height="350" viewBox="0 0 400 350" className="bg-slate-900 rounded-lg">
@@ -259,11 +343,26 @@ const ScientificThumbController = () => {
               <feMergeNode in="SourceGraphic"/>
             </feMerge>
           </filter>
+          {/* Arrow marker for Z axis */}
+          <marker id="arrowZ" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L8,4 L0,8 L2,4 Z" fill="#f472b6" />
+          </marker>
         </defs>
 
         {/* Background */}
         <rect width="400" height="350" fill="url(#gridGradient)" />
         <rect width="400" height="350" fill="url(#grid)" />
+
+        {/* 3D Reference Plane (XZ plane at CMC) */}
+        <polygon
+          points={`
+            ${fk.base.x},${fk.base.y}
+            ${fk.base.x - 60},${fk.base.y + 40}
+            ${fk.base.x + 60},${fk.base.y + 40}
+          `}
+          fill="#f472b6"
+          opacity="0.08"
+        />
 
         {/* Coordinate axes */}
         <line x1="50" y1="300" x2="350" y2="300" stroke="#475569" strokeWidth="1" strokeDasharray="2,2" />
@@ -271,25 +370,28 @@ const ScientificThumbController = () => {
         <text x="360" y="305" fill="#94a3b8" fontSize="10" fontFamily="monospace">X</text>
         <text x="45" y="40" fill="#94a3b8" fontSize="10" fontFamily="monospace">Y</text>
 
-        {/* Hand base */}
-        <path
-          d={`M ${fk.base.x - 60} ${fk.base.y + 50}
-              L ${fk.base.x - 20} ${fk.base.y + 20}
-              L ${fk.base.x + 50} ${fk.base.y + 40}
-              L ${fk.base.x + 40} ${fk.base.y + 80}
-              L ${fk.base.x - 60} ${fk.base.y + 50}`}
-          fill="#1e3a8a"
-          stroke="#60a5fa"
-          strokeWidth="1"
-          opacity="0.8"
+        {/* Z axis from CMC (base) */}
+        <line
+          x1={fk.base.x}
+          y1={fk.base.y}
+          x2={fk.base.x - 40}
+          y2={fk.base.y + 40}
+          stroke="#f472b6"
+          strokeWidth="2"
+          markerEnd="url(#arrowZ)"
         />
+        <text
+          x={fk.base.x - 45}
+          y={fk.base.y + 45}
+          fill="#f472b6"
+          fontSize="12"
+          fontFamily="monospace"
+        >
+          Z
+        </text>
 
         {/* Thumb segments */}
-        {[
-          { shape: metacarpalShape, name: 'METACARPAL' },
-          { shape: proximalShape, name: 'PROXIMAL' },
-          { shape: distalShape, name: 'DISTAL' }
-        ].map((segment, index) => (
+        {[{ shape: metacarpalShape }, { shape: proximalShape }, { shape: distalShape }].map((segment, index) => (
           <g key={index}>
             <path
               d={`M ${segment.shape.topStart.x} ${segment.shape.topStart.y}
@@ -303,65 +405,54 @@ const ScientificThumbController = () => {
               filter="url(#glow)"
               opacity="0.9"
             />
-            {/* Joint markers */}
-            {index > 0 && (
-              <circle
-                cx={segment.shape.topStart.x}
-                cy={(segment.shape.topStart.y + segment.shape.bottomStart.y) / 2}
-                r="4"
-                fill="#f97316"
-                stroke="#fed7aa"
-                strokeWidth="2"
-              />
-            )}
           </g>
         ))}
-
-        {/* End effector */}
-        <circle
-          cx={fk.tip.x}
-          cy={fk.tip.y}
-          r="6"
-          fill="#10b981"
-          stroke="#86efac"
-          strokeWidth="2"
-          filter="url(#glow)"
-        />
-
-        {/* Actuator paths */}
-        {['mp', 'pip', 'dip'].map((joint, idx) => {
-          const actuatorY = 50 + idx * 30;
-          return (
-            <g key={joint}>
-              <line
-                x1={50}
-                y1={actuatorY}
-                x2={fk[joint === 'mp' ? 'mp' : joint === 'pip' ? 'pip' : 'tip'].x}
-                y2={fk[joint === 'mp' ? 'mp' : joint === 'pip' ? 'pip' : 'tip'].y}
-                stroke="#8b5cf6"
-                strokeWidth="1"
-                strokeDasharray="2,2"
-                opacity="0.3"
-              />
-              <text x={30} y={actuatorY + 3} fill="#94a3b8" fontSize="8" fontFamily="monospace">
-                {joint.toUpperCase()}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Joint angle labels */}
-        <text x={fk.base.x + 10} y={fk.base.y - 10} fill="#fbbf24" fontSize="10" fontFamily="monospace">
-          MP: {currentAngles.mpFlex.toFixed(1)}°
-        </text>
-        <text x={fk.mp.x + 10} y={fk.mp.y - 10} fill="#fbbf24" fontSize="10" fontFamily="monospace">
-          PIP: {currentAngles.pipFlex.toFixed(1)}°
-        </text>
-        <text x={fk.pip.x + 10} y={fk.pip.y - 10} fill="#fbbf24" fontSize="10" fontFamily="monospace">
-          DIP: {currentAngles.dipFlex.toFixed(1)}°
-        </text>
+        {/* Joint markers and labels */}
+        {/* CMC (base) */}
+        <circle cx={fk.base.x} cy={fk.base.y} r="6" fill="#f59e42" stroke="#fff7ed" strokeWidth="2" />
+        <text x={fk.base.x + 8} y={fk.base.y - 8} fill="#fbbf24" fontSize="12" fontFamily="monospace">CMC</text>
+        {/* MCP */}
+        <circle cx={fk.mcp.x} cy={fk.mcp.y} r="6" fill="#10b981" stroke="#fff7ed" strokeWidth="2" />
+        <text x={fk.mcp.x + 8} y={fk.mcp.y - 8} fill="#34d399" fontSize="12" fontFamily="monospace">MCP</text>
+        {/* IP */}
+        <circle cx={fk.ip.x} cy={fk.ip.y} r="6" fill="#3b82f6" stroke="#fff7ed" strokeWidth="2" />
+        <text x={fk.ip.x + 8} y={fk.ip.y - 8} fill="#60a5fa" fontSize="12" fontFamily="monospace">IP</text>
+        {/* Tip */}
+        <circle cx={fk.tip.x} cy={fk.tip.y} r="6" fill="#f43f5e" stroke="#fff7ed" strokeWidth="2" />
+        <text x={fk.tip.x + 8} y={fk.tip.y - 8} fill="#f43f5e" fontSize="12" fontFamily="monospace">TIP</text>
       </svg>
     );
+  };
+
+  // Optimize reset handler with loading state
+  const handleReset = async () => {
+    setIsResetting(true);
+    // Immediately set to initial state for instant feedback
+    setCurrentAngles(initialAngles);
+    setTargetAngles(initialAngles);
+    setTelemetryData([]);
+    
+    try {
+      const result = await processCommand('reset');
+      // Update with server response if different
+      if (JSON.stringify(result.angles) !== JSON.stringify(initialAngles)) {
+        setTargetAngles(result.angles);
+        setCurrentAngles(result.angles);
+      }
+    } catch (error) {
+      console.error('Reset failed:', error);
+    } finally {
+      setIsResetting(false);
+    }
+
+    setMessages([
+      {
+        id: 1,
+        type: 'system',
+        text: 'System reset. All joint angles returned to rest position.',
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   };
 
   return (
@@ -375,14 +466,45 @@ const ScientificThumbController = () => {
           <p className="text-slate-400">Neural Language Interface v2.0 | Real-time Kinematic Control</p>
         </div>
         
+        {/* Trial Visualization Buttons */}
+        <div className="flex flex-wrap justify-center gap-3 mb-4">
+          {trialButtons.map(label => (
+            <button
+              key={label}
+              onClick={() => handleTrial(label)}
+              disabled={isProcessing}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold shadow-md transition-all duration-150
+                bg-slate-800 hover:bg-cyan-600 text-cyan-300 hover:text-white
+                disabled:opacity-60 disabled:cursor-not-allowed`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Command Terminal */}
           <div className="lg:col-span-1 bg-slate-900 rounded-lg border border-slate-800 flex flex-col h-[600px]">
-            <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-4 rounded-t-lg border-b border-slate-800">
+            <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-4 rounded-t-lg border-b border-slate-800 flex justify-between items-center">
               <h2 className="text-lg font-semibold flex items-center gap-2 text-cyan-400">
                 <Terminal size={20} />
                 Command Terminal
               </h2>
+              
+              {/* Enhanced Reset Button with Loading State */}
+              <button
+                onClick={handleReset}
+                disabled={isResetting}
+                className={`flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-lg text-sm font-medium transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-red-500/20 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 ${
+                  isResetting ? 'opacity-75 cursor-not-allowed' : ''
+                }`}
+              >
+                <RotateCcw 
+                  size={16} 
+                  className={`${isResetting ? 'animate-spin' : 'animate-spin-slow'}`} 
+                />
+                <span>{isResetting ? 'Resetting...' : 'Reset System'}</span>
+              </button>
             </div>
             
             {/* Messages */}
@@ -408,10 +530,16 @@ const ScientificThumbController = () => {
                       {message.angles && (
                         <div className="mt-2 text-xs bg-slate-800 p-2 rounded border border-slate-700">
                           <div className="grid grid-cols-2 gap-1">
-                            <div>MP_FLEX: {message.angles.mpFlex}°</div>
-                            <div>MP_ABD: {message.angles.mpAbd}°</div>
-                            <div>PIP_FLEX: {message.angles.pipFlex}°</div>
-                            <div>DIP_FLEX: {message.angles.dipFlex}°</div>
+                            <div>CMC_FLEX: {message.angles.CMC_flex}°</div>
+                            <div>CMC_EXT: {message.angles.CMC_ext}°</div>
+                            <div>CMC_ABD: {message.angles.CMC_abd}°</div>
+                            <div>CMC_ADD: {message.angles.CMC_add}°</div>
+                            <div>CMC_OPP: {message.angles.CMC_opp}°</div>
+                            <div>CMC_REP: {message.angles.CMC_rep}°</div>
+                            <div>MCP_FLEX: {message.angles.MCP_flex}°</div>
+                            <div>MCP_EXT: {message.angles.MCP_ext}°</div>
+                            <div>IP_FLEX: {message.angles.IP_flex}°</div>
+                            <div>IP_EXT: {message.angles.IP_ext}°</div>
                           </div>
                         </div>
                       )}
