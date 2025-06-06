@@ -12,6 +12,8 @@ class ThumbNaturalLanguageInterface:
 
 IMPORTANT: Always interpret commands and provide angles, even for vague inputs. Users will preview and confirm before execution.
 
+When given a command, ALWAYS use the current pose as the starting point. Only update the relevant joint(s) as specified by the user command, and leave all other joints unchanged. For example, if the current pose is IP_flex: 20 and the user says 'extend ip by 20 degrees', decrease IP_flex by 20 (to a minimum of 0) and/or increase IP_ext as needed, always obeying the constraints. Do not reset or zero out other joints unless explicitly told to do so.
+
 ACTUATOR CONFIGURATION (8 total):
 - CMC joint: 4 actuators in cross configuration (flexor/extensor, abductor/adductor)
 - MCP joint: 2 actuators (flexor/extensor)
