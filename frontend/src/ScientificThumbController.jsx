@@ -314,13 +314,6 @@ const ScientificThumbController = () => {
     return () => stopAnimation();
   }, [stopAnimation]);
 
-  // Auto-scroll messages
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
-
   // Forward kinematics calculation
   const calculateForwardKinematics = (angles) => {
     const deg2rad = (deg) => deg * Math.PI / 180;
@@ -547,7 +540,6 @@ const ScientificThumbController = () => {
           <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
             Biomechatronic Thumb Control System
           </h1>
-          <p className="text-slate-400">Neural Language Interface v2.0 | Real-time Kinematic Control</p>
         </div>
         
         <div className="flex flex-wrap justify-center gap-3 mb-4">

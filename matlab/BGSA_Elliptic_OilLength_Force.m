@@ -172,8 +172,8 @@ end
 toc
 %% plot
 figure
-plot(Voltage_different*2e3,FF_Voltage)
+plot(Voltage_different,FF_Voltage)
 xlabel('Voltage (V)')
 ylabel('Contractile force (N)')
-title('Extension - Force')
+title('Voltage - Force')
 grid on
