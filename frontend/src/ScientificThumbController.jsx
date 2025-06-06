@@ -81,12 +81,6 @@ const ScientificThumbController = () => {
   const [targetAngles, setTargetAngles] = useState(initialAngles);
   const [currentAngles, setCurrentAngles] = useState(initialAngles);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [telemetryData, setTelemetryData] = useState([]);
-  const [performanceMetrics, setPerformanceMetrics] = useState({
-    responseTime: 0,
-    accuracy: 100,
-    powerConsumption: 0
-  });
   const [isResetting, setIsResetting] = useState(false);
   
   // Refs
@@ -128,6 +122,46 @@ const ScientificThumbController = () => {
 
   const trialButtons = ['Curl', 'Extend', 'Oppose', 'Reposition', 'Thumbs Up', 'Pinch', 'Rest'];
 
+  // Function to fetch force values from backend (define this before any function that uses it)
+  const fetchForceValues = useCallback(async (angles) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/compute-forces', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ joint_angles: angles }),
+      });
+      if (!response.ok) {
+        throw new Error(`Backend returned ${response.status}`);
+      }
+      const forces = await response.json();
+      setActuatorForces(forces);
+    } catch (error) {
+      console.error('Error fetching force values:', error);
+    }
+  }, []);
+
+  // Function to fetch voltage values from backend (define this before any function that uses it)
+  const fetchVoltageValues = useCallback(async (angles) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/compute-voltages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ joint_angles: angles }),
+      });
+      if (!response.ok) {
+        throw new Error(`Backend returned ${response.status}`);
+      }
+      const voltages = await response.json();
+      setActuatorVoltages(voltages);
+    } catch (error) {
+      console.error('Error fetching voltage values:', error);
+    }
+  }, []);
+
   // Stop animation helper
   const stopAnimation = useCallback(() => {
     if (animationFrameRef.current) {
@@ -143,13 +177,6 @@ const ScientificThumbController = () => {
     const result = await processCommand(command);
     const endTime = performance.now();
     
-    setPerformanceMetrics(prev => ({
-      ...prev,
-      responseTime: endTime - startTime,
-      accuracy: result.success ? (98 + Math.random() * 2) : 0,
-      powerConsumption: Math.random() * 50 + 100
-    }));
-    
     return result;
   };
 
@@ -164,6 +191,8 @@ const ScientificThumbController = () => {
       setTargetAngles({ ...preset });
       setIsAnimating(true);
       animationStartTimeRef.current = Date.now();
+      fetchForceValues(preset);
+      fetchVoltageValues(preset);
     }, 50);
     
     setMessages(prev => [
@@ -176,7 +205,7 @@ const ScientificThumbController = () => {
         timestamp: new Date().toISOString()
       }
     ]);
-  }, [stopAnimation]);
+  }, [stopAnimation, fetchForceValues, fetchVoltageValues]);
 
   // Send message handler
   const sendMessage = useCallback(async () => {
@@ -213,23 +242,9 @@ const ScientificThumbController = () => {
           setTargetAngles(result.angles);
           setIsAnimating(true);
           animationStartTimeRef.current = Date.now();
+          fetchForceValues(result.angles);
+          fetchVoltageValues(result.angles);
         }, 50);
-        
-        const netAngles = {
-          CMC_net: (result.angles.CMC_flex || 0) - (result.angles.CMC_ext || 0),
-          MCP_net: (result.angles.MCP_flex || 0) - (result.angles.MCP_ext || 0),
-          IP_net: (result.angles.IP_flex || 0) - (result.angles.IP_ext || 0)
-        };
-        
-        const telemetryPoint = {
-          timestamp: Date.now(),
-          CMC_flex: result.angles.CMC_flex || 0,
-          CMC_abd: result.angles.CMC_abd || 0,
-          CMC_opp: result.angles.CMC_opp || 0,
-          totalFlexion: Math.abs(netAngles.CMC_net) + Math.abs(netAngles.MCP_net) + Math.abs(netAngles.IP_net)
-        };
-        
-        setTelemetryData(prev => [...prev.slice(-50), telemetryPoint]);
       }
     } catch (error) {
       console.error('Error processing command:', error);
@@ -243,7 +258,7 @@ const ScientificThumbController = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [inputText, isProcessing, processNaturalLanguage, stopAnimation]);
+  }, [inputText, isProcessing, processNaturalLanguage, stopAnimation, fetchForceValues, fetchVoltageValues]);
 
   // Animation loop
   useEffect(() => {
@@ -478,7 +493,6 @@ const ScientificThumbController = () => {
     
     setCurrentAngles({ ...initialAngles });
     setTargetAngles({ ...initialAngles });
-    setTelemetryData([]);
     
     try {
       const result = await processCommand('reset');
@@ -499,6 +513,32 @@ const ScientificThumbController = () => {
       timestamp: new Date().toISOString(),
     }]);
   }, [initialAngles, stopAnimation]);
+
+  // Update force state to be dynamic
+  const [actuatorForces, setActuatorForces] = useState({
+    CMC_flex: 0, CMC_ext: 0, CMC_abd: 0, CMC_add: 0, CMC_opp: 0, CMC_rep: 0,
+    MCP_flex: 0, MCP_ext: 0, IP_flex: 0, IP_ext: 0
+  });
+
+  // Add actuator voltages state for 8 actuators
+  const [actuatorVoltages, setActuatorVoltages] = useState({
+    cmc_flexor: 0, cmc_extensor: 0, cmc_adductor: 0, cmc_abductor: 0,
+    mcp_flexor: 0, mcp_extensor: 0, ip_flexor: 0, ip_extensor: 0
+  });
+
+  // Update forces when current angles change
+  useEffect(() => {
+    if (isAnimating) {
+      fetchForceValues(currentAngles);
+    }
+  }, [currentAngles, isAnimating, fetchForceValues]);
+
+  // Update forces when target angles are set
+  useEffect(() => {
+    if (!isAnimating) {
+      fetchForceValues(targetAngles);
+    }
+  }, [targetAngles, isAnimating, fetchForceValues]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4">
@@ -615,8 +655,8 @@ const ScientificThumbController = () => {
             </div>
           </div>
           
-          <div className="lg:col-span-2 space-y-4">
-            <div className="bg-slate-900 rounded-lg border border-slate-800 p-4">
+          <div className="lg:col-span-2">
+            <div className="bg-slate-900 rounded-lg border border-slate-800 p-4 mb-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-semibold text-blue-400 flex items-center gap-2">
                   <Zap size={20} />
@@ -630,69 +670,59 @@ const ScientificThumbController = () => {
               
               <ThumbVisualization />
             </div>
-            
-            <div className="bg-slate-900 rounded-lg border border-slate-800 p-4">
-              <h3 className="text-lg font-semibold text-blue-400 flex items-center gap-2 mb-3">
-                <TrendingUp size={20} />
-                Real-time Telemetry
+
+            {/* Force Results Section */}
+            <div className="bg-slate-900 rounded-lg border border-slate-800 p-4 mb-4">
+              <h3 className="text-lg font-semibold text-purple-400 flex items-center gap-2 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                </svg>
+                Actuator Force Measurements
               </h3>
-              
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="bg-slate-800 rounded p-3 border border-slate-700">
-                  <div className="text-xs text-slate-400 mb-1">Response Time</div>
-                  <div className="text-xl font-bold text-cyan-400">
-                    {performanceMetrics.responseTime.toFixed(1)}ms
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {Object.entries(actuatorForces).map(([actuator, force]) => (
+                  <div key={actuator} className="bg-slate-800 rounded-lg p-3 border border-slate-700 hover:border-purple-500 transition-colors duration-200">
+                    <div className="text-xs text-slate-400 mb-1 font-mono">{actuator.replace('_', ' ')}</div>
+                    <div className="flex items-end gap-1">
+                      <span className="text-xl font-bold text-purple-400">{force.toFixed(1)}</span>
+                      <span className="text-sm text-slate-500 mb-0.5">N</span>
+                    </div>
+                    <div className="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-purple-500 to-purple-600 rounded-full"
+                        style={{ width: `${(force / 3) * 100}%` }}
+                      />
+                    </div>
                   </div>
-                </div>
-                <div className="bg-slate-800 rounded p-3 border border-slate-700">
-                  <div className="text-xs text-slate-400 mb-1">Command Accuracy</div>
-                  <div className="text-xl font-bold text-green-400">
-                    {performanceMetrics.accuracy.toFixed(1)}%
-                  </div>
-                </div>
-                <div className="bg-slate-800 rounded p-3 border border-slate-700">
-                  <div className="text-xs text-slate-400 mb-1">Power Draw</div>
-                  <div className="text-xl font-bold text-yellow-400">
-                    {performanceMetrics.powerConsumption.toFixed(0)}mW
-                  </div>
-                </div>
+                ))}
               </div>
-              
-              {telemetryData.length > 0 && (
-                <ResponsiveContainer width="100%" height={150}>
-                  <AreaChart data={telemetryData.slice(-20)}>
-                    <defs>
-                      <linearGradient id="flexionGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis 
-                      dataKey="timestamp" 
-                      stroke="#64748b"
-                      tick={{ fill: '#64748b', fontSize: 10 }}
-                      tickFormatter={() => ''}
-                    />
-                    <YAxis 
-                      stroke="#64748b"
-                      tick={{ fill: '#64748b', fontSize: 10 }}
-                    />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
-                      labelStyle={{ color: '#94a3b8' }}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="totalFlexion" 
-                      stroke="#3b82f6" 
-                      fillOpacity={1} 
-                      fill="url(#flexionGradient)" 
-                      name="Total Flexion (°)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
+            </div>
+
+            {/* Voltage Results Section */}
+            <div className="bg-slate-900 rounded-lg border border-slate-800 p-4">
+              <h3 className="text-lg font-semibold text-cyan-400 flex items-center gap-2 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                </svg>
+                Actuator Voltage Readings
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {Object.entries(actuatorVoltages).map(([actuator, voltage]) => (
+                  <div key={actuator} className="bg-slate-800 rounded-lg p-3 border border-slate-700 hover:border-cyan-500 transition-colors duration-200">
+                    <div className="text-xs text-slate-400 mb-1 font-mono">{actuator.replace('_', ' ')}</div>
+                    <div className="flex items-end gap-1">
+                      <span className="text-xl font-bold text-cyan-400">{voltage.toFixed(1)}</span>
+                      <span className="text-sm text-slate-500 mb-0.5">V</span>
+                    </div>
+                    <div className="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-cyan-500 to-cyan-600 rounded-full"
+                        style={{ width: `${(voltage / 4) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

@@ -7,21 +7,17 @@ def compute_actuator_forces(joint_angles):
         "CMC_ext": 1.0,
         "CMC_abd": 1.0,
         "CMC_add": 1.0,
-        "CMC_opp": 1.0,
-        "CMC_rep": 1.0,
         "MCP_flex": 1.0,
         "MCP_ext": 1.0,
         "IP_flex": 1.0,
         "IP_ext": 1.0
     }
-    
+
     DISTANCE = {
         "CMC_flex": 10.0,
         "CMC_ext": 10.0,
         "CMC_abd": 10.0,
         "CMC_add": 10.0,
-        "CMC_opp": 10.0,
-        "CMC_rep": 10.0,
         "MCP_flex": 10.0,
         "MCP_ext": 10.0,
         "IP_flex": 10.0,
@@ -32,17 +28,17 @@ def compute_actuator_forces(joint_angles):
 
     # Direct mappings
     for joint, angle in joint_angles.items():
-        if joint in ["CMC_opp"]:
+        if joint == "CMC_opp":
             # Split force diagonally into CMC_flex + CMC_add
-            torque = STIFFNESS[joint] * math.radians(angle)
-            component_force = torque / DISTANCE[joint] * 0.707  # ≈ sqrt(2)/2
+            torque = STIFFNESS["CMC_flex"] * math.radians(angle)
+            component_force = torque / DISTANCE["CMC_flex"] * 0.707
             forces["CMC_flex"] += component_force
             forces["CMC_add"] += component_force
 
-        elif joint in ["CMC_rep"]:
+        elif joint == "CMC_rep":
             # Split force diagonally into CMC_ext + CMC_abd
-            torque = STIFFNESS[joint] * math.radians(angle)
-            component_force = torque / DISTANCE[joint] * 0.707
+            torque = STIFFNESS["CMC_ext"] * math.radians(angle)
+            component_force = torque / DISTANCE["CMC_ext"] * 0.707
             forces["CMC_ext"] += component_force
             forces["CMC_abd"] += component_force
 
