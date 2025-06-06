@@ -6,7 +6,7 @@ class ThumbNaturalLanguageInterface:
     """Converts natural language to robotic thumb joint angles using Claude and remembers pose state."""
 
     def __init__(self, api_key):
-        self.client = anthropic.Anthropic(api_key="ANTHROPIC_API_KEY")
+        self.client = anthropic.Anthropic(api_key=api_key)
 
         self.system_prompt = """You are a precise robotic thumb controller. Convert natural language commands to joint angles for a 6-DOF biomechatronic thumb with antagonistic soft actuators.
 

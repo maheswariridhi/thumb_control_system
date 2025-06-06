@@ -14,5 +14,5 @@ response = client.messages.create(
     messages=[{"role": "user", "content": "curl the thumb"}],
     max_tokens=200
 )
-
 print(response.content[0].text)
+print("LLM raw response:", response.content[0].text)
