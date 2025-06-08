@@ -18,7 +18,7 @@ API_KEY = os.getenv("ANTHROPIC_API_KEY")
 nli = ThumbNaturalLanguageInterface(API_KEY)
 
 # Initialize voltage mapper with the correct CSV path
-voltage_mapper = ActuatorVoltageMapper('../matlab/Voltage_Force_LookupTable.csv')
+voltage_mapper = ActuatorVoltageMapper('C:/Users/User/Desktop/year 4_80percentabove/INDIVIDUAL PROJECT/thumb_control_system/matlab/Voltage_Force_LookupTable.csv')
 
 @app.route('/api/process-command', methods=['POST'])
 def process_command():
@@ -33,15 +33,6 @@ def process_command():
         print(f"Error in API: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/compute-voltages', methods=['POST'])
-def compute_voltages():
-    try:
-        data = request.get_json()
-        joint_angles = data.get('joint_angles', {})
-        voltages = voltage_mapper.angles_to_voltages(joint_angles)
-        return jsonify(voltages)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/compute-forces', methods=['POST'])
 def compute_forces():
@@ -52,6 +43,35 @@ def compute_forces():
         return jsonify(forces)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/compute-voltages', methods=['POST'])
+def compute_voltages():
+    try:
+        data = request.get_json()
+        joint_angles = data.get('joint_angles', {})
+        print("Received joint_angles:", joint_angles)
+        forces = compute_actuator_forces(joint_angles)
+        print("Computed forces:", forces)
+        # Map force processor keys to voltage mapper keys
+        force_to_voltage_keys = {
+            "CMC_flex": "cmc_flexor",
+            "CMC_ext": "cmc_extensor",
+            "CMC_abd": "cmc_abductor",
+            "CMC_add": "cmc_adductor",
+            "MCP_flex": "mcp_flexor",
+            "MCP_ext": "mcp_extensor",
+            "IP_flex": "ip_flexor",
+            "IP_ext": "ip_extensor"
+        }
+        mapped_forces = {voltage_key: forces.get(force_key, 0.0) for force_key, voltage_key in force_to_voltage_keys.items()}
+        print("Mapped forces:", mapped_forces)
+        voltages = voltage_mapper.forces_to_voltages(mapped_forces)
+        print("Voltages:", voltages)
+        return jsonify(voltages)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 
 @app.route('/health', methods=['GET'])
 def health_check():

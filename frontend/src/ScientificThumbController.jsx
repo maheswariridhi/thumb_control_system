@@ -676,7 +676,7 @@ const ScientificThumbController = () => {
                   <div key={actuator} className="bg-slate-800 rounded-lg p-3 border border-slate-700 hover:border-purple-500 transition-colors duration-200">
                     <div className="text-xs text-slate-400 mb-1 font-mono">{actuator.replace('_', ' ')}</div>
                     <div className="flex items-end gap-1">
-                      <span className="text-xl font-bold text-purple-400">{force.toFixed(1)}</span>
+                      <span className="text-xl font-bold text-purple-400">{force.toFixed(2)}</span>
                       <span className="text-sm text-slate-500 mb-0.5">N</span>
                     </div>
                     <div className="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden">
