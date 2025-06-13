@@ -3,25 +3,25 @@ def compute_actuator_forces(joint_angles):
 
     # Updated constants to match actuator's real force output
     STIFFNESS = {
-        "CMC_flex": 0.0131,  # N/rad
-        "CMC_ext": 0.0131,
-        "CMC_abd": 0.0131,
-        "CMC_add": 0.0131,
-        "MCP_flex": 0.0131,
-        "MCP_ext": 0.0131,
-        "IP_flex": 0.0131,
-        "IP_ext": 0.0131
+        "CMC_flex": 0.0187,  # N/rad
+        "CMC_ext": 0.0187,
+        "CMC_abd": 0.0187,
+        "CMC_add": 0.0187,
+        "MCP_flex": 0.00373,
+        "MCP_ext": 0.00373,
+        "IP_flex": 0.00373,
+        "IP_ext": 0.00373
     }
 
     DISTANCE = {
-        "CMC_flex": 0.05,  # 5 cm
-        "CMC_ext": 0.05,
-        "CMC_abd": 0.05,
-        "CMC_add": 0.05,
-        "MCP_flex": 0.05,
-        "MCP_ext": 0.05,
-        "IP_flex": 0.05,
-        "IP_ext": 0.05
+        "CMC_flex": 0.060,  # 6 cm
+        "CMC_ext": 0.060,
+        "CMC_abd": 0.060,
+        "CMC_add": 0.060,
+        "MCP_flex": 0.015,
+        "MCP_ext": 0.015,
+        "IP_flex": 0.015,
+        "IP_ext": 0.015
     }
 
     forces = {k: 0.0 for k in STIFFNESS.keys()}

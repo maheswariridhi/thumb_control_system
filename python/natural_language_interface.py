@@ -27,7 +27,7 @@ JOINT DEFINITIONS (all angles in degrees):
 - CMC_opp: 0 to 45
 - CMC_rep: 0 to 45
 - MCP_flex: 0 to 90
-- MCP_ext: 0 to 25
+- MCP_ext: 0 to 60
 - IP_flex: 0 to 90
 - IP_ext: 0 to 15
 
@@ -121,7 +121,7 @@ Now output the updated pose in JSON only.
             "CMC_flex": (0, 90), "CMC_ext": (0, 20),
             "CMC_abd": (0, 30), "CMC_add": (0, 30),
             "CMC_opp": (0, 45), "CMC_rep": (0, 45),
-            "MCP_flex": (0, 90), "MCP_ext": (0, 25),
+            "MCP_flex": (0, 90), "MCP_ext": (0, 60),
             "IP_flex": (0, 90), "IP_ext": (0, 15)
         }
 
